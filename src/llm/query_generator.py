@@ -1,5 +1,3 @@
-"""LLM-based SQL query generation utilities."""
-
 from langchain_openai import ChatOpenAI
 from typing import Optional
 from ..utils.config import Config
@@ -55,7 +53,6 @@ IMPORTANT TABLE SELECTION GUIDELINES:
 Return only the SQL query, nothing else."""
     
     def validate_sql(self, sql_query: str) -> bool:
-        """Basic validation of generated SQL query."""
         if not sql_query:
             return False
         

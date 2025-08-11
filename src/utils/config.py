@@ -1,5 +1,3 @@
-"""Configuration and environment management utilities."""
-
 import os
 from dotenv import load_dotenv
 
@@ -7,8 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    """Configuration class for the SQL Agent."""
-    
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
