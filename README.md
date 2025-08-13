@@ -1,78 +1,61 @@
-# SQL Agent with LangChain
+# Natural Language SQL Agent
 
-This project demonstrates how to use LangChain to create an AI agent that can interact with a PostgreSQL database using natural language queries.
+A powerful Natural Language to SQL agent built with LangChain, OpenAI, and SQLAlchemy. This agent can understand natural language queries and convert them into SQL queries to interact with your database.
 
 ## Features
 
-- Natural language to SQL query conversion
-- PostgreSQL database integration
-- OpenAI GPT-4o-mini integration
-- Error handling and logging
-- Environment-based configuration
-- Modular, maintainable codebase
-- Database schema inspection
-- SQL query validation
-
-## Project Structure
-
-```
-AI Agent/
-├── src/                          # Source code
-│   ├── database/                 # Database utilities
-│   │   ├── connection.py         # Database connection management
-│   │   └── schema.py             # Schema inspection utilities
-│   ├── llm/                      # LLM integration
-│   │   └── query_generator.py    # SQL query generation
-│   ├── core/                     # Core business logic
-│   │   └── sql_agent.py          # Main agent orchestration
-│   └── utils/                    # Utilities
-│       └── config.py             # Configuration management
-├── tests/                        # Unit tests
-├── examples/                     # Usage examples
-├── main.py                       # Entry point
-├── requirements.txt              # Dependencies
-└── README.md                     # This file
-```
-
-## Prerequisites
-
-- Python 3.8+
-- PostgreSQL database
-- OpenAI API key
+- 🧠 **Natural Language Understanding**: Convert plain English questions into SQL queries
+- 🔧 **SQL Database Toolkit**: Built-in tools for querying, schema inspection, and validation
+- 🚀 **ReAct Agent**: Uses LangChain's ReAct agent for intelligent query processing
+- 📊 **Multiple Database Support**: Works with PostgreSQL, MySQL, SQLite, and more
+- 🔒 **Safe Queries**: Prevents DML operations (INSERT, UPDATE, DELETE, DROP)
+- 📈 **Streaming Support**: Real-time query processing with streaming output
+- 🛡️ **Error Handling**: Robust error handling and query validation
 
 ## Installation
 
-1. Clone or download this project
-2. Install dependencies:
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd Natural-Language-SQL-Agent
+   ```
+
+2. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-## Configuration
-
-1. Copy `env_example.txt` to `.env`:
-
+3. **Set up environment variables**:
    ```bash
    cp env_example.txt .env
+   # Edit .env with your actual values
    ```
 
-2. Edit `.env` with your actual credentials:
-   ```
-   OPENAI_API_KEY=your_actual_openai_api_key
-   DATABASE_URL=postgresql://username:password@host:port/dbname
-   ```
+## Configuration
+
+Create a `.env` file with the following variables:
+
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Database Configuration
+DATABASE_URL=postgresql://username:password@host:port/database_name
+
+# Optional Configuration
+OPENAI_MODEL=gpt-4o
+OPENAI_TEMPERATURE=0.0
+```
+
+### Supported Database URLs
+
+- **PostgreSQL**: `postgresql://username:password@localhost:5432/mydb`
+- **MySQL**: `mysql://username:password@localhost:3306/mydb`
+- **SQLite**: `sqlite:///path/to/database.db`
 
 ## Usage
 
 ### Basic Usage
-
-Run the main application:
-
-```bash
-python main.py
-```
-
-### Programmatic Usage
 
 ```python
 from src.core.sql_agent import SQLAgent
@@ -81,119 +64,90 @@ from src.core.sql_agent import SQLAgent
 agent = SQLAgent()
 
 # Process a natural language query
-result = agent.process_query("How many users signed up last month?")
-
-if result["success"]:
-    print(f"Generated SQL: {result['generated_sql']}")
-    print(f"Result: {result['result']}")
-else:
-    print(f"Error: {result['error']}")
-
-# Get database information
-db_info = agent.get_database_info()
-print(f"Available tables: {db_info['tables']}")
+result = agent.process_query("Show me the first 5 users")
+print(result)
 
 # Clean up
 agent.close()
 ```
 
+### Interactive Mode
+
+Run the main script for an interactive experience:
+
+```bash
+python main.py
+```
+
 ### Example Scripts
 
-Run the example usage script:
+Run the basic usage example:
 
 ```bash
 python examples/basic_usage.py
 ```
 
-### Running Tests
+## How It Works
 
-```bash
-python -m unittest discover tests
-```
+1. **Initialization**: The agent connects to your database and loads the SQL Database Toolkit
+2. **Query Processing**: Natural language queries are processed by the ReAct agent
+3. **Tool Selection**: The agent automatically selects appropriate tools (query, schema, validation)
+4. **SQL Generation**: Queries are converted to SQL and validated
+5. **Execution**: Safe SQL queries are executed against your database
+6. **Results**: Results are returned in a structured format
 
-## Key Components
+## Available Tools
 
-### 1. SQLAgent (Core)
+The SQL Database Toolkit provides these tools:
 
-- Main orchestrator that coordinates all components
-- Processes natural language queries end-to-end
-- Provides database information and status
+- **QuerySQLDatabaseTool**: Execute SQL queries and return results
+- **InfoSQLDatabaseTool**: Get schema and sample data for tables
+- **ListSQLDatabaseTool**: List all available tables
+- **QuerySQLCheckerTool**: Validate SQL queries before execution
 
-### 2. DatabaseManager
+## Safety Features
 
-- Handles database connections
-- Provides connection testing and cleanup
-- Manages SQLAlchemy engine lifecycle
+- ❌ **No DML Operations**: INSERT, UPDATE, DELETE, DROP are blocked
+- ✅ **Query Validation**: All queries are validated before execution
+- ✅ **Schema Inspection**: Automatic table and column validation
+- ✅ **Error Handling**: Comprehensive error handling and recovery
 
-### 3. SchemaInspector
+## Requirements
 
-- Inspects database schema automatically
-- Provides table names, column information
-- Generates table summaries with row counts
-
-### 4. SQLQueryGenerator
-
-- Uses OpenAI LLM to generate SQL from natural language
-- Includes database schema context for accuracy
-- Validates generated SQL queries
-
-### 5. Configuration
-
-- Environment-based configuration management
-- Validation of required settings
-- Centralized configuration access
-
-## Example Queries
-
-- "How many applications did I get from 2023-01-01 to 2023-01-31?"
-- "What is the total revenue for Q1 2023?"
-- "Show me the top 10 customers by order value"
-- "How many orders were placed yesterday?"
+- Python 3.8+
+- OpenAI API key
+- Database connection
+- Internet connection (for OpenAI API calls)
 
 ## Dependencies
 
-- **langchain** - Core LangChain functionality
-- **langchain-openai** - OpenAI integration
-- **langchain-community** - Community utilities including SQL database
-- **sqlalchemy** - Database ORM
-- **psycopg2-binary** - PostgreSQL adapter
-- **python-dotenv** - Environment variable management
-
-## Security Notes
-
-- Never commit your `.env` file to version control
-- Keep your OpenAI API key secure
-- Use strong database passwords
-- Consider using connection pooling for production use
+- **LangChain**: Core framework for LLM applications
+- **LangGraph**: Agent orchestration and execution
+- **OpenAI**: Language model integration
+- **SQLAlchemy**: Database abstraction layer
+- **psycopg2**: PostgreSQL adapter
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Database Connection Error**: Verify your DATABASE_URL format and credentials
-2. **OpenAI API Error**: Check your API key and billing status
-3. **Import Errors**: Ensure all dependencies are installed correctly
-4. **Schema Inspection Errors**: Verify database permissions and table existence
+1. **OpenAI API Key Error**: Ensure your `.env` file has the correct API key
+2. **Database Connection Error**: Verify your database URL and credentials
+3. **Package Installation Issues**: Try updating pip: `pip install --upgrade pip`
 
 ### Getting Help
 
-- Check the LangChain documentation: https://python.langchain.com/
-- Verify your PostgreSQL connection separately
-- Test your OpenAI API key independently
-- Check the test files for usage examples
+If you encounter issues:
 
-## Development
+1. Check your environment variables
+2. Verify database connectivity
+3. Ensure all dependencies are installed
+4. Check the error messages for specific guidance
 
-### Adding New Features
+## Contributing
 
-1. Create new modules in appropriate `src/` subdirectories
-2. Add corresponding tests in `tests/`
-3. Update this README with new functionality
-4. Ensure all imports use relative paths within the package
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Code Style
+## License
 
-- Follow PEP 8 guidelines
-- Use type hints where appropriate
-- Include docstrings for all public methods
-- Write unit tests for new functionality
+This project is licensed under the MIT License - see the LICENSE file for details.

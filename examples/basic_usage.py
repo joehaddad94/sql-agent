@@ -1,57 +1,61 @@
-"""Example usage of the SQL Agent."""
+#!/usr/bin/env python3
+"""
+Basic usage example for the Natural Language SQL Agent.
+"""
 
-from src.core.sql_agent import SQLAgent
+import sys
+import os
 
-def example_usage():
-    """Demonstrate basic usage of the SQL Agent."""
+# Add the src directory to the Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from core.sql_agent import SQLAgent
+
+def main():
+    """Main function to demonstrate the SQL Agent."""
     
-    # Initialize the agent
-    agent = SQLAgent()
-    
-    # Example queries
-    queries = [
-        "How many applications did I get from the start of this month until now?",
-    ]
-    
-    for query in queries:
-        print(f"\n{'='*50}")
-        print(f"Query: {query}")
-        print(f"{'='*50}")
+    try:
+        # Initialize the SQL Agent
+        print("Initializing SQL Agent...")
+        agent = SQLAgent()
         
-        try:
-            result = agent.process_query(query)
-            
-            if result["success"]:
-                print(f"✅ Success!")
-                print(f"Generated SQL: {result['generated_sql']}")
-                print(f"Result: {result['result']}")
+        # Get database information
+        print("\nGetting database information...")
+        db_info = agent.get_database_info()
+        print(f"Connection status: {db_info.get('connection_status')}")
+        print(f"Available tables: {db_info.get('tables', [])}")
+        print(f"Available tools: {db_info.get('available_tools', [])}")
+        
+        # Example natural language query
+        query = "Show me the first 3 rows from the users table"
+        print(f"\nProcessing query: '{query}'")
+        
+        # Process the query
+        result = agent.process_query(query)
+        
+        if result["success"]:
+            print("Query processed successfully!")
+            print(f"Answer: {result['answer']}")
+            if result.get('sql_query_used'):
+                print(f"SQL Query Used: {result['sql_query_used']}")
+        else:
+            print(f"Error: {result['error']}")
+        
+        # Example with streaming (optional)
+        print(f"\nProcessing query with streaming: '{query}'")
+        for step in agent.process_query_stream(query):
+            if "error" in step:
+                print(f"Streaming error: {step['error']}")
             else:
-                print(f"❌ Failed: {result['error']}")
-                if "generated_sql" in result:
-                    print(f"Generated SQL: {result['generated_sql']}")
-                    
-        except Exception as e:
-            print(f"❌ Error: {e}")
-    
-    # Get database information
-    print(f"\n{'='*50}")
-    print("Database Information")
-    print(f"{'='*50}")
-    
-    db_info = agent.get_database_info()
-    if "error" not in db_info:
-        print(f"Connection: {'✅ Connected' if db_info['connection_status'] else '❌ Failed'}")
-        print(f"Tables: {', '.join(db_info['tables']) if db_info['tables'] else 'None'}")
+                print(f"Step: {step}")
         
-        if db_info['table_summary']:
-            print("\nTable Summary:")
-            for table, count in db_info['table_summary'].items():
-                print(f"  {table}: {count} rows")
-    else:
-        print(f"Error: {db_info['error']}")
+    except Exception as e:
+        print(f"Error: {e}")
     
-    # Clean up
-    agent.close()
+    finally:
+        # Clean up
+        if 'agent' in locals():
+            agent.close()
 
 if __name__ == "__main__":
-    example_usage()
+    main()

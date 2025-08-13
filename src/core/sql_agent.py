@@ -1,8 +1,11 @@
 from typing import Optional, Dict, Any
-from ..database.connection import DatabaseManager
-from ..database.schema import SchemaInspector
-from ..llm.query_generator import SQLQueryGenerator
-from ..utils.config import Config
+from langchain_community.agent_toolkits import SQLDatabaseToolkit
+from langchain_core.messages import HumanMessage
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+from src.database.connection import DatabaseManager
+from src.database.schema import SchemaInspector
+from src.utils.config import Config
 
 class SQLAgent:
     
@@ -13,60 +16,181 @@ class SQLAgent:
         # Initialize components
         self.db_manager = DatabaseManager(Config.DATABASE_URL)
         self.schema_inspector = SchemaInspector(self.db_manager)
-        self.query_generator = SQLQueryGenerator()
+        
+        # Initialize LLM
+        self.llm = ChatOpenAI(
+            model_name="gpt-4o",
+            temperature=0.0,
+            openai_api_key=Config.OPENAI_API_KEY
+        )
+        
+        # Create SQL Database Toolkit
+        self.toolkit = SQLDatabaseToolkit(db=self.db_manager.db, llm=self.llm)
+        self.tools = self.toolkit.get_tools()
+        
+        # Create system message
+        self.system_message = """
+            You are an agent designed to interact with a SQL database for an educational application system.
+            Given an input question, create a syntactically correct {dialect} query to run,
+            then look at the results of the query and return the answer. Unless the user
+            specifies a specific number of examples they wish to obtain, always limit your
+            query to at most {top_k} results.
+
+            You can order the results by a relevant column to return the most interesting
+            examples in the database. Never query for all the columns from a specific table,
+            only ask for the relevant columns given the question.
+
+            You MUST double check your query before executing it. If you get an error while
+            executing a query, rewrite the query and try again.
+
+            DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the
+            database.
+
+            To start you should ALWAYS look at the tables in the database to see what you
+            can query. Do NOT skip this step.
+
+            Then you should query the schema of the most relevant tables.
+
+            CRITICAL TABLE SELECTION GUIDELINES:
+            - For applications and submissions: Use 'application_news' table (NOT 'applicants')
+            - For programs and courses: Use 'programs' table
+            - For application cycles and dates: Use 'cycles' table
+            - For user information: Use 'up_users' table
+            - For application components and details: Use 'application_news_*_links' tables
+            - For decision dates: Use 'decision_dates' table
+            - For enrolled applications: Use 'enrolled_applications' table
+
+            IMPORTANT BUSINESS LOGIC:
+            - Applications are stored in 'application_news' table, not 'applicants'
+            - Use 'created_at' field for date-based queries on applications
+            - Application status and acceptance are tracked in 'application_news' table
+            - Programs and courses are managed in 'programs' table
+            - Application cycles (academic periods) are in 'cycles' table
+            - User information is in 'up_users' table, not 'admin_users'
+
+            When answering questions about applications, always use the 'application_news' table
+            and its related link tables for comprehensive information.
+            """.format(
+            dialect="PostgreSQL",  # Assuming PostgreSQL based on psycopg2 in requirements
+            top_k=1,
+        )
+        
+        # Create the agent
+        self.agent_executor = create_react_agent(self.llm, self.tools, prompt=self.system_message)
     
     def process_query(self, natural_language_query: str) -> Dict[str, Any]:
-        """Process a natural language query and return results."""
+        """Process a natural language query using the LangChain agent and return results."""
         try:
-            # Get database schema
-            schema = self.schema_inspector.get_full_schema()
-            if not schema or schema.startswith("Error"):
-                return {
-                    "success": False,
-                    "error": "Failed to retrieve database schema",
-                    "schema_error": schema
-                }
+            # Execute the agent with the query
+            result = self.agent_executor.invoke({
+                "messages": [{"role": "user", "content": natural_language_query}]
+            })
             
-            # Generate SQL query
-            sql_query = self.query_generator.generate_sql_query(natural_language_query, schema)
-            if not sql_query:
-                return {
-                    "success": False,
-                    "error": "Failed to generate SQL query"
-                }
+            # Debug: Log the structure of the result
+            print(f"\n🔍 DEBUG: Result type: {type(result)}")
+            print(f"🔍 DEBUG: Result keys: {result.keys() if hasattr(result, 'keys') else 'No keys'}")
             
-            # Validate SQL query
-            if not self.query_generator.validate_sql(sql_query):
-                return {
-                    "success": False,
-                    "error": "Generated SQL query is invalid",
-                    "generated_sql": sql_query
-                }
+            # Extract the final answer and SQL query from the messages
+            final_answer = ""
+            sql_query_used = ""
             
-            # Execute SQL query
-            result = self.db_manager.db.run(sql_query)
+            if "messages" in result:
+                print(f"🔍 DEBUG: Found {len(result['messages'])} messages")
+                
+                # Look through all messages to find the final answer and SQL query
+                for i, message in enumerate(result["messages"]):
+                    print(f"🔍 DEBUG: Message {i}: {type(message)}")
+                    print(f"🔍 DEBUG: Message {i} content: {getattr(message, 'content', 'No content')}")
+                    print(f"🔍 DEBUG: Message {i} tool_calls: {getattr(message, 'tool_calls', 'No tool_calls')}")
+                    
+                    if hasattr(message, 'content') and message.content:
+                        # Look for the final answer (usually the last non-empty content)
+                        if not hasattr(message, 'tool_calls') or not message.tool_calls or len(message.tool_calls) == 0:
+                            if message.content and not message.content.startswith(''):
+                                final_answer = message.content
+                                print(f"🔍 DEBUG: Found final answer: {final_answer}")
+                        
+                        # Look for SQL queries in tool calls
+                        if hasattr(message, 'tool_calls') and message.tool_calls and len(message.tool_calls) > 0:
+                            for tool_call in message.tool_calls:
+                                if tool_call.get('function', {}).get('name') == 'sql_db_query':
+                                    # Extract the SQL query from the tool call arguments
+                                    try:
+                                        import json
+                                        args = json.loads(tool_call['function']['arguments'])
+                                        if 'query' in args:
+                                            sql_query_used = args['query']
+                                            print(f"🔍 DEBUG: Found SQL query: {sql_query_used}")
+                                    except Exception as e:
+                                        print(f"🔍 DEBUG: Error parsing tool call args: {e}")
+            
+            # If no clear answer found, try to extract from the result structure
+            if not final_answer:
+                print("🔍 DEBUG: No final answer found, trying alternative extraction...")
+                # Look for the last message with content that's not a tool call
+                for message in reversed(result["messages"]):
+                    if hasattr(message, 'content') and message.content and not message.content.startswith(''):
+                        if not hasattr(message, 'tool_calls') or not message.tool_calls or len(message.tool_calls) == 0:
+                            final_answer = message.content
+                            print(f"🔍 DEBUG: Found alternative answer: {final_answer}")
+                            break
+                
+                if not final_answer:
+                    final_answer = "No clear answer generated"
+                    print("🔍 DEBUG: Still no answer found, using default")
+            
+            print(f"🔍 DEBUG: Final extracted answer: {final_answer}")
+            print(f"🔍 DEBUG: Final extracted SQL query: {sql_query_used}")
             
             return {
                 "success": True,
                 "natural_language_query": natural_language_query,
-                "generated_sql": sql_query,
-                "result": result,
-                "schema_used": schema
+                "answer": final_answer,
+                "sql_query_used": sql_query_used,
+                "raw_result": result  # Keep raw result for debugging if needed
             }
             
         except Exception as e:
+            print(f"🔍 DEBUG: Exception in process_query: {e}")
             return {
                 "success": False,
+                "error": f"Unexpected error: {str(e)}"
+            }
+    
+    def process_query_stream(self, natural_language_query: str):
+        """Process a natural language query with streaming output."""
+        try:
+            # Stream the agent execution
+            for step in self.agent_executor.stream(
+                {"messages": [{"role": "user", "content": natural_language_query}]},
+                stream_mode="values",
+            ):
+                yield step
+                
+        except Exception as e:
+            yield {
                 "error": f"Unexpected error: {str(e)}"
             }
     
     def get_database_info(self) -> Dict[str, Any]:
         """Get information about the database."""
         try:
+            # Get basic connection status
+            connection_status = self.db_manager.test_connection()
+            
+            # Get detailed connection info
+            connection_info = self.db_manager.get_connection_info()
+            
+            # Get schema information
+            tables = self.schema_inspector.get_table_names()
+            table_summary = self.schema_inspector.get_table_summary()
+            
             return {
-                "connection_status": self.db_manager.test_connection(),
-                "tables": self.schema_inspector.get_table_names(),
-                "table_summary": self.schema_inspector.get_table_summary()
+                "connection_status": connection_status,
+                "connection_details": connection_info,
+                "tables": tables,
+                "table_summary": table_summary,
+                "available_tools": [tool.name for tool in self.tools]
             }
         except Exception as e:
             return {
