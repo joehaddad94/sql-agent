@@ -2,7 +2,6 @@
 
 from sqlalchemy import create_engine, text
 from langchain_community.utilities.sql_database import SQLDatabase
-from typing import Optional
 import logging
 
 class DatabaseManager:

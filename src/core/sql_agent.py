@@ -1,6 +1,5 @@
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 from src.database.connection import DatabaseManager
@@ -86,32 +85,23 @@ class SQLAgent:
                 "messages": [{"role": "user", "content": natural_language_query}]
             })
             
-            # Debug: Log the structure of the result
-            print(f"\n🔍 DEBUG: Result type: {type(result)}")
-            print(f"🔍 DEBUG: Result keys: {result.keys() if hasattr(result, 'keys') else 'No keys'}")
-            
             # Extract the final answer and SQL query from the messages
             final_answer = ""
             sql_query_used = ""
             
             if "messages" in result:
-                print(f"🔍 DEBUG: Found {len(result['messages'])} messages")
-                
                 # Look through all messages to find the final answer and SQL query
-                for i, message in enumerate(result["messages"]):
-                    print(f"🔍 DEBUG: Message {i}: {type(message)}")
-                    print(f"🔍 DEBUG: Message {i} content: {getattr(message, 'content', 'No content')}")
-                    print(f"🔍 DEBUG: Message {i} tool_calls: {getattr(message, 'tool_calls', 'No tool_calls')}")
-                    
+                for message in result["messages"]:
                     if hasattr(message, 'content') and message.content:
-                        # Look for the final answer (usually the last non-empty content)
-                        if not hasattr(message, 'tool_calls') or not message.tool_calls or len(message.tool_calls) == 0:
-                            if message.content and not message.content.startswith(''):
+                        # Check if message has no tool calls (None, False, or empty list)
+                        has_tool_calls = bool(hasattr(message, 'tool_calls') and message.tool_calls and len(message.tool_calls) > 0)
+                        
+                        if not has_tool_calls:
+                            if message.content and message.content.strip():
                                 final_answer = message.content
-                                print(f"🔍 DEBUG: Found final answer: {final_answer}")
                         
                         # Look for SQL queries in tool calls
-                        if hasattr(message, 'tool_calls') and message.tool_calls and len(message.tool_calls) > 0:
+                        if has_tool_calls:
                             for tool_call in message.tool_calls:
                                 if tool_call.get('function', {}).get('name') == 'sql_db_query':
                                     # Extract the SQL query from the tool call arguments
@@ -120,27 +110,23 @@ class SQLAgent:
                                         args = json.loads(tool_call['function']['arguments'])
                                         if 'query' in args:
                                             sql_query_used = args['query']
-                                            print(f"🔍 DEBUG: Found SQL query: {sql_query_used}")
                                     except Exception as e:
-                                        print(f"🔍 DEBUG: Error parsing tool call args: {e}")
+                                        print(f"Warning: Error parsing tool call args: {e}")
             
             # If no clear answer found, try to extract from the result structure
             if not final_answer:
-                print("🔍 DEBUG: No final answer found, trying alternative extraction...")
                 # Look for the last message with content that's not a tool call
                 for message in reversed(result["messages"]):
-                    if hasattr(message, 'content') and message.content and not message.content.startswith(''):
-                        if not hasattr(message, 'tool_calls') or not message.tool_calls or len(message.tool_calls) == 0:
+                    if hasattr(message, 'content') and message.content and message.content.strip():
+                        # Check if message has no tool calls (None, False, or empty list)
+                        has_tool_calls = bool(hasattr(message, 'tool_calls') and message.tool_calls and len(message.tool_calls) > 0)
+                        
+                        if not has_tool_calls:
                             final_answer = message.content
-                            print(f"🔍 DEBUG: Found alternative answer: {final_answer}")
                             break
                 
                 if not final_answer:
                     final_answer = "No clear answer generated"
-                    print("🔍 DEBUG: Still no answer found, using default")
-            
-            print(f"🔍 DEBUG: Final extracted answer: {final_answer}")
-            print(f"🔍 DEBUG: Final extracted SQL query: {sql_query_used}")
             
             return {
                 "success": True,
@@ -151,24 +137,8 @@ class SQLAgent:
             }
             
         except Exception as e:
-            print(f"🔍 DEBUG: Exception in process_query: {e}")
             return {
                 "success": False,
-                "error": f"Unexpected error: {str(e)}"
-            }
-    
-    def process_query_stream(self, natural_language_query: str):
-        """Process a natural language query with streaming output."""
-        try:
-            # Stream the agent execution
-            for step in self.agent_executor.stream(
-                {"messages": [{"role": "user", "content": natural_language_query}]},
-                stream_mode="values",
-            ):
-                yield step
-                
-        except Exception as e:
-            yield {
                 "error": f"Unexpected error: {str(e)}"
             }
     

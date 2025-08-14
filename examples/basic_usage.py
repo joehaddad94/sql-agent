@@ -41,14 +41,6 @@ def main():
         else:
             print(f"Error: {result['error']}")
         
-        # Example with streaming (optional)
-        print(f"\nProcessing query with streaming: '{query}'")
-        for step in agent.process_query_stream(query):
-            if "error" in step:
-                print(f"Streaming error: {step['error']}")
-            else:
-                print(f"Step: {step}")
-        
     except Exception as e:
         print(f"Error: {e}")
     

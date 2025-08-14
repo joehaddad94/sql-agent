@@ -20,7 +20,7 @@ class AgentReloader(FileSystemEventHandler):
     def __init__(self, agent_manager):
         self.agent_manager = agent_manager
         self.last_reload = time.time()
-        self.reload_cooldown = 2  # Minimum seconds between reloads
+        self.reload_cooldown = 5  # Minimum seconds between reloads
     
     def on_modified(self, event):
         if event.is_directory:
@@ -42,6 +42,7 @@ class AgentReloader(FileSystemEventHandler):
             self.agent_manager.reload_agent()
             self.last_reload = current_time
             print("✅ Agent reloaded successfully!")
+            print("💬 You can now continue with your queries...")
         except Exception as e:
             print(f"❌ Failed to reload agent: {e}")
 
@@ -59,7 +60,7 @@ class AgentManager:
             importlib.invalidate_caches()
             
             # Reimport the agent
-            from core.sql_agent import SQLAgent
+            from src.core.sql_agent import SQLAgent
             self.agent = SQLAgent()
             print("✅ Agent loaded successfully!")
             
