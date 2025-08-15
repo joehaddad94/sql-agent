@@ -1,12 +1,13 @@
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
+from langchain_core.runnables import Runnable
 from src.database.connection import DatabaseManager
 from src.database.schema import SchemaInspector
 from src.utils.config import Config
 
-class SQLAgent:
+class SQLAgent(Runnable):
     
     def __init__(self):
         # Validate configuration
@@ -170,3 +171,32 @@ class SQLAgent:
     def close(self):
         """Close database connections."""
         self.db_manager.close()
+    
+    # LangServe Runnable interface methods
+    def invoke(self, input_data: Union[str, Dict[str, Any]], config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Invoke the agent with input data. This is the main entry point for LangServe."""
+        if isinstance(input_data, str):
+            # Direct string input
+            return self.process_query(input_data)
+        elif isinstance(input_data, dict) and "query" in input_data:
+            # Dictionary with query key
+            return self.process_query(input_data["query"])
+        elif isinstance(input_data, dict) and "messages" in input_data:
+            # LangChain message format
+            if input_data["messages"] and len(input_data["messages"]) > 0:
+                last_message = input_data["messages"][-1]
+                if hasattr(last_message, 'content'):
+                    return self.process_query(last_message.content)
+                elif isinstance(last_message, dict) and "content" in last_message:
+                    return self.process_query(last_message["content"])
+        
+        # Fallback
+        return {
+            "success": False,
+            "error": f"Unsupported input format. Expected string or dict with 'query' or 'messages', got {type(input_data)}"
+        }
+    
+    def stream(self, input_data: Union[str, Dict[str, Any]], config: Dict[str, Any] = None):
+        """Stream responses from the agent. For now, just return the full response."""
+        result = self.invoke(input_data, config)
+        yield result
