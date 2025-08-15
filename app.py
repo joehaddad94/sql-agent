@@ -10,14 +10,38 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from fastapi import FastAPI
+from pydantic import BaseModel, Field
 from langserve import add_routes
+from langserve import validation  # Needed for manual model rebuild
 from src.core.sql_agent import SQLAgent
 from src.utils.config import Config
 
+# Define the input schema that LangServe expects
+class ChatInput(BaseModel):
+    input: str = Field(..., description="The natural language query to process")
+    
+    class Config:
+        # This ensures the model works properly with LangServe
+        extra = "forbid"
+        validate_assignment = True
+
+# ------------------------------------------------------------------
+# PATCH: Ensure all Pydantic models in LangServe are rebuilt
+# ------------------------------------------------------------------
+try:
+    for name in dir(validation):
+        obj = getattr(validation, name)
+        if hasattr(obj, "model_rebuild"):
+            obj.model_rebuild()
+except Exception as e:
+    print(f"⚠️ Could not rebuild LangServe models: {e}")
+
+# ------------------------------------------------------------------
 # Validate configuration before starting
+# ------------------------------------------------------------------
 Config.validate()
 
-# Initialize the SQL Agent (will stay running)
+# Initialize the SQL Agent
 print("🚀 Initializing SQL Agent for LangServe...")
 sql_agent = SQLAgent()
 print("✅ SQL Agent initialized and ready for requests!")
@@ -29,7 +53,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add health check endpoint
+# ------------------------------------------------------------------
+# Health check endpoint
+# ------------------------------------------------------------------
 @app.get("/health")
 async def health_check():
     """Check if the SQL agent is running and healthy."""
@@ -57,26 +83,28 @@ async def health_check():
             "error": str(e)
         }
 
-# Add the SQL agent as a LangServe runnable
+# ------------------------------------------------------------------
+# LangServe route
+# ------------------------------------------------------------------
 add_routes(
     app,
-    sql_agent,  # Use the agent instance directly since it now implements Runnable
+    sql_agent,       # Runnable instance
     path="/chat",
-    input_type=str,  # Use simple string input to avoid schema issues
+    input_type=ChatInput,  # Use our custom input schema
     config_keys=["configurable"],
-    enable_feedback_endpoint=False,  # Disable feedback endpoint to avoid schema issues
+    enable_feedback_endpoint=False,
+    per_req_config_modifier=lambda config: config,
 )
 
-# Add a simple status endpoint
+# Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint with basic information."""
     return {
         "message": "Natural Language SQL Agent API",
         "status": "running",
         "endpoints": {
             "chat": "/chat/invoke",
-            "stream": "/chat/stream", 
+            "stream": "/chat/stream",
             "health": "/health",
             "docs": "/docs"
         },
@@ -85,17 +113,17 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     print("🌐 Starting LangServe server...")
-    print("📖 API documentation available at: http://localhost:8000/docs")
-    print("💬 Chat endpoint available at: http://localhost:8000/chat/invoke")
-    print("🏥 Health check available at: http://localhost:8000/health")
+    print("📖 API docs: http://localhost:8000/docs")
+    print("💬 Chat endpoint: http://localhost:8000/chat/invoke")
+    print("🏥 Health check: http://localhost:8000/health")
     print("=" * 60)
-    
+
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
         port=8000,
-        reload=False,  # Disable reload since we want agent to stay running
+        reload=False,
         log_level="info"
     )

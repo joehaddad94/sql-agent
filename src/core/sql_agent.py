@@ -181,6 +181,15 @@ class SQLAgent(Runnable):
         elif isinstance(input_data, dict) and "query" in input_data:
             # Dictionary with query key
             return self.process_query(input_data["query"])
+        elif isinstance(input_data, dict) and "input" in input_data:
+            # LangServe input format
+            return self.process_query(input_data["input"])
+        elif hasattr(input_data, 'query'):
+            # Pydantic model with query attribute
+            return self.process_query(input_data.query)
+        elif hasattr(input_data, 'input'):
+            # Pydantic model with input attribute
+            return self.process_query(input_data.input)
         elif isinstance(input_data, dict) and "messages" in input_data:
             # LangChain message format
             if input_data["messages"] and len(input_data["messages"]) > 0:
@@ -193,7 +202,7 @@ class SQLAgent(Runnable):
         # Fallback
         return {
             "success": False,
-            "error": f"Unsupported input format. Expected string or dict with 'query' or 'messages', got {type(input_data)}"
+            "error": f"Unsupported input format. Expected string, dict with 'query' or 'input', or Pydantic model with 'query' or 'input' attribute, got {type(input_data)}"
         }
     
     def stream(self, input_data: Union[str, Dict[str, Any]], config: Dict[str, Any] = None):
