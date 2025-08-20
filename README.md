@@ -1,6 +1,6 @@
 # Natural Language SQL Agent
 
-A powerful Natural Language to SQL agent built with LangChain, OpenAI, and SQLAlchemy. This agent can understand natural language queries and convert them into SQL queries to interact with your database.
+A powerful Natural Language to SQL agent built with **LangChain Platform**, OpenAI, and SQLAlchemy. This agent can understand natural language queries and convert them into SQL queries to interact with your database. Now using the modern LangChain Platform instead of the deprecated LangServe.
 
 ## Features
 
@@ -10,17 +10,20 @@ A powerful Natural Language to SQL agent built with LangChain, OpenAI, and SQLAl
 - 📊 **Multiple Database Support**: Works with PostgreSQL, MySQL, SQLite, and more
 - 🔒 **Safe Queries**: Prevents DML operations (INSERT, UPDATE, DELETE, DROP)
 - 📈 **Streaming Support**: Real-time query processing with streaming output
+- 🌐 **REST API**: FastAPI-based REST API with LangChain Platform integration
 - 🛡️ **Error Handling**: Robust error handling and query validation
 
 ## Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone <repository-url>
    cd Natural-Language-SQL-Agent
    ```
 
 2. **Install dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -79,6 +82,23 @@ Run the main script for an interactive experience:
 python main.py
 ```
 
+### REST API Server
+
+Start the FastAPI server with LangChain Platform integration:
+
+```bash
+python app.py
+```
+
+The server provides these endpoints:
+
+- `GET /` - API information and available endpoints
+- `GET /health` - Health check and database status
+- `POST /chat/invoke` - Process natural language queries
+- `POST /chat/stream` - Stream responses in real-time
+- `POST /chat/batch` - Process multiple queries in batch
+- `GET /docs` - Interactive API documentation
+
 ### Example Scripts
 
 Run the basic usage example:
@@ -121,11 +141,12 @@ The SQL Database Toolkit provides these tools:
 
 ## Dependencies
 
-- **LangChain**: Core framework for LLM applications
+- **LangChain Platform**: Modern framework for LLM applications (replaces deprecated LangServe)
 - **LangGraph**: Agent orchestration and execution
 - **OpenAI**: Language model integration
 - **SQLAlchemy**: Database abstraction layer
 - **psycopg2**: PostgreSQL adapter
+- **FastAPI**: High-performance web framework for building APIs
 
 ## Troubleshooting
 
@@ -143,6 +164,21 @@ If you encounter issues:
 2. Verify database connectivity
 3. Ensure all dependencies are installed
 4. Check the error messages for specific guidance
+
+## Migration from LangServe
+
+This project has been migrated from the deprecated **LangServe** to the modern **LangChain Platform**. The key changes include:
+
+- ✅ **Removed LangServe dependencies** - No more `langserve` or `sse_starlette` packages
+- ✅ **Standard FastAPI endpoints** - Clean, maintainable REST API implementation
+- ✅ **Enhanced functionality** - Added streaming, batch processing, and better error handling
+- ✅ **Future-proof** - Uses the actively maintained LangChain Platform
+
+### What Changed
+
+- **Before**: Used `langserve.add_routes()` for automatic endpoint generation
+- **After**: Custom FastAPI endpoints with full control over request/response handling
+- **Benefits**: Better performance, more flexibility, and easier debugging
 
 ## Contributing
 

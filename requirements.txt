@@ -1,20 +1,4 @@
-# langchain==0.3.27
-# langchain-openai==0.3.30
-# langchain-core==0.3.74
-# langchain-community
-# langsmith==0.4.14
-# langgraph==0.6.5
-# langgraph-prebuilt==0.6.4
-# openai
-# sqlalchemy<2.0,>=1.4.54
-# psycopg2-binary==2.9.10
-# python-dotenv
-# watchdog==6.0.0
-# fastapi==0.116.1
-# uvicorn==0.35.0
-# langserve
-# sse_starlette
-
+# LangChain Platform dependencies
 langchain==0.3.27
 langchain-openai==0.3.30
 langchain-core==0.3.74
@@ -22,13 +6,19 @@ langchain-community
 langsmith==0.4.14
 langgraph==0.6.5
 langgraph-prebuilt==0.6.4
+
+# Core dependencies
 openai
 sqlalchemy<2.0,>=1.4.54
 psycopg2-binary==2.9.10
 python-dotenv
 watchdog==6.0.0
+
+# FastAPI and server dependencies
 fastapi==0.116.1
 uvicorn==0.35.0
-langserve==0.3.1
-sse_starlette
+
+# Additional utilities
+pydantic>=2.0.0
+typing-extensions
 
