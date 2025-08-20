@@ -3,6 +3,7 @@ Chat-related API endpoints
 """
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from src.api.models import ChatInput, ChatResponse
 from src.api.utils import extract_clean_answer
 from src.core.sql_agent import SQLAgent
@@ -47,25 +48,36 @@ async def chat_stream(request: ChatInput):
     if not sql_agent:
         raise HTTPException(status_code=500, detail="SQL Agent not initialized")
     
-    try:
-        # Use the SQL agent to stream the response
-        async for chunk in sql_agent.astream(request.input):
-            # Yield each chunk as it becomes available
-            if hasattr(chunk, 'content'):
-                yield f"data: {chunk.content}\n\n"
-            elif isinstance(chunk, dict):
-                # Extract the clean answer from the chunk
-                clean_chunk = extract_clean_answer(chunk)
-                yield f"data: {clean_chunk}\n\n"
-            elif isinstance(chunk, str):
-                yield f"data: {chunk}\n\n"
-            else:
-                yield f"data: {str(chunk)}\n\n"
-        
-        # Send end marker
-        yield "data: [DONE]\n\n"
-    except Exception as e:
-        yield f"data: Error: {str(e)}\n\n"
+    async def generate_stream():
+        try:
+            # Use the SQL agent to stream the response
+            async for chunk in sql_agent.astream(request.input):
+                # Yield each chunk as it becomes available
+                if hasattr(chunk, 'content'):
+                    yield f"data: {chunk.content}\n\n"
+                elif isinstance(chunk, dict):
+                    # Extract the clean answer from the chunk
+                    clean_chunk = extract_clean_answer(chunk)
+                    yield f"data: {clean_chunk}\n\n"
+                elif isinstance(chunk, str):
+                    yield f"data: {chunk}\n\n"
+                else:
+                    yield f"data: {str(chunk)}\n\n"
+            
+            # Send end marker
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: Error: {str(e)}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream"
+        }
+    )
 
 @router.post("/batch")
 async def chat_batch(requests: list[ChatInput]):
