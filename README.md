@@ -99,6 +99,21 @@ The server provides these endpoints:
 - `POST /chat/batch` - Process multiple queries in batch
 - `GET /docs` - Interactive API documentation
 
+#### API Structure
+
+The API is now organized in a clean, modular structure:
+
+```
+src/api/
+├── models.py      # Request/response models
+├── routes/        # Endpoint handlers
+│   ├── chat.py    # Chat endpoints
+│   ├── health.py  # Health checks
+│   └── root.py    # API information
+├── utils.py       # Helper functions
+└── config.py      # App configuration
+```
+
 ### Example Scripts
 
 Run the basic usage example:
