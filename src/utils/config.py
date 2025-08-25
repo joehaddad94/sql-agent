@@ -13,6 +13,12 @@ class Config:
     # Database Configuration
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://username:password@host:port/dbname")
     
+    # Server Configuration
+    SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+    SERVER_RELOAD = os.getenv("SERVER_RELOAD", "false").lower() == "true"
+    SERVER_LOG_LEVEL = os.getenv("SERVER_LOG_LEVEL", "info")
+    
     # LangSmith Configuration
     LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
     LANGSMITH_ENDPOINT = os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com")

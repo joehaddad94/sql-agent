@@ -39,17 +39,20 @@ if __name__ == "__main__":
     import uvicorn
     
     print("🌐 Starting LangChain Platform server...")
-    print("📖 API docs: http://localhost:8000/docs")
-    print("💬 Chat endpoint: http://localhost:8000/chat/invoke")
-    print("🌊 Stream endpoint: http://localhost:8000/chat/stream")
-    print("📦 Batch endpoint: http://localhost:8000/chat/batch")
-    print("🏥 Health check: http://localhost:8000/health")
+    print(f"📖 API docs: http://localhost:{Config.SERVER_PORT}/docs")
+    print(f"💬 Chat endpoint: http://localhost:{Config.SERVER_PORT}/chat/invoke")
+    print(f"🌊 Stream endpoint: http://localhost:{Config.SERVER_PORT}/chat/stream")
+    print(f"📦 Batch endpoint: http://localhost:{Config.SERVER_PORT}/chat/batch")
+    print(f"🏥 Health check: http://localhost:{Config.SERVER_PORT}/health")
+    print(f"🔧 Server config: {Config.SERVER_HOST}:{Config.SERVER_PORT}")
+    print(f"🔄 Auto-reload: {Config.SERVER_RELOAD}")
+    print(f"📝 Log level: {Config.SERVER_LOG_LEVEL}")
     print("=" * 60)
     
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=False,
-        log_level="info"
+        host=Config.SERVER_HOST,
+        port=Config.SERVER_PORT,
+        reload=Config.SERVER_RELOAD,
+        log_level=Config.SERVER_LOG_LEVEL
     )

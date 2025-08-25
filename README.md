@@ -46,9 +46,20 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Database Configuration
 DATABASE_URL=postgresql://username:password@host:port/database_name
 
+# Example database URLs:
+# PostgreSQL: postgresql://username:password@localhost:5432/mydb
+# MySQL: mysql://username:password@localhost:3306/mydb
+# SQLite: sqlite:///path/to/database.db
+
 # Optional Configuration
 OPENAI_MODEL=gpt-4o
 OPENAI_TEMPERATURE=0.0
+
+# Server Configuration
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8001
+SERVER_RELOAD=false
+SERVER_LOG_LEVEL=info
 
 # LangSmith Configuration (Optional - for tracing and monitoring)
 # Get your API key from https://smith.langchain.com/
@@ -57,6 +68,13 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_PROJECT=natural-language-sql-agent
 LANGSMITH_TRACING_V2=true
 ```
+
+### Server Configuration Options
+
+- **SERVER_HOST**: Server host address (default: `0.0.0.0` for all interfaces)
+- **SERVER_PORT**: Server port number (default: `8001`, recommended: `8001`)
+- **SERVER_RELOAD**: Enable auto-reload for development (default: `false`)
+- **SERVER_LOG_LEVEL**: Logging level (default: `info`, options: `debug`, `info`, `warning`, `error`)
 
 ### Supported Database URLs
 
@@ -200,7 +218,7 @@ Start the FastAPI server with LangChain Platform integration:
 python app.py
 ```
 
-The server provides these endpoints:
+The server provides these endpoints (default port 8000, configurable via SERVER_PORT):
 
 - `GET /` - API information and available endpoints
 - `GET /health` - Health check and database status
@@ -208,6 +226,8 @@ The server provides these endpoints:
 - `POST /chat/stream` - Stream responses in real-time
 - `POST /chat/batch` - Process multiple queries in batch
 - `GET /docs` - Interactive API documentation
+
+**Default URLs**: `http://localhost:8001/` (or your configured SERVER_PORT)
 
 #### API Structure
 
