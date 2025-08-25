@@ -3,6 +3,8 @@ from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import Runnable
+from langchain_core.tracers import LangChainTracer
+from langchain_core.runnables import RunnableConfig
 from src.database.connection import DatabaseManager
 from src.database.schema import SchemaInspector
 from src.utils.config import Config
@@ -13,15 +15,23 @@ class SQLAgent(Runnable):
         # Validate configuration
         Config.validate()
         
+        # Set up LangSmith if API key is provided
+        self.langsmith_enabled = Config.setup_langsmith()
+        
         # Initialize components
         self.db_manager = DatabaseManager(Config.DATABASE_URL)
         self.schema_inspector = SchemaInspector(self.db_manager)
         
-        # Initialize LLM
+        # Initialize LLM with metadata for tracing
         self.llm = ChatOpenAI(
-            model_name="gpt-4o",
-            temperature=0.0,
-            openai_api_key=Config.OPENAI_API_KEY
+            model_name=Config.OPENAI_MODEL,
+            temperature=Config.OPENAI_TEMPERATURE,
+            openai_api_key=Config.OPENAI_API_KEY,
+            metadata={
+                "agent_type": "sql_agent",
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local",
+                "version": "1.0.0"
+            }
         )
         
         # Create SQL Database Toolkit
@@ -78,13 +88,24 @@ class SQLAgent(Runnable):
         # Create the agent
         self.agent_executor = create_react_agent(self.llm, self.tools, prompt=self.system_message)
     
-    def process_query(self, natural_language_query: str) -> Dict[str, Any]:
+    def process_query(self, natural_language_query: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a natural language query using the LangChain agent and return results."""
         try:
-            # Execute the agent with the query
+            # Prepare metadata for tracing
+            run_metadata = {
+                "query_type": "natural_language_to_sql",
+                "database_url": self.db_manager.get_connection_info().get("database_name", "unknown"),
+                "langsmith_enabled": self.langsmith_enabled,
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
+            }
+            
+            if metadata:
+                run_metadata.update(metadata)
+            
+            # Execute the agent with the query and metadata
             result = self.agent_executor.invoke({
                 "messages": [{"role": "user", "content": natural_language_query}]
-            })
+            }, config=RunnableConfig(metadata=run_metadata))
             
             # Extract the final answer and SQL query from the messages
             final_answer = ""
@@ -134,13 +155,17 @@ class SQLAgent(Runnable):
                 "natural_language_query": natural_language_query,
                 "answer": final_answer,
                 "sql_query_used": sql_query_used,
-                "raw_result": result  # Keep raw result for debugging if needed
+                "raw_result": result,  # Keep raw result for debugging if needed
+                "langsmith_enabled": self.langsmith_enabled,
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
             }
             
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Unexpected error: {str(e)}"
+                "error": f"Unexpected error: {str(e)}",
+                "langsmith_enabled": self.langsmith_enabled,
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
             }
     
     def get_database_info(self) -> Dict[str, Any]:
@@ -161,11 +186,15 @@ class SQLAgent(Runnable):
                 "connection_details": connection_info,
                 "tables": tables,
                 "table_summary": table_summary,
-                "available_tools": [tool.name for tool in self.tools]
+                "available_tools": [tool.name for tool in self.tools],
+                "langsmith_enabled": self.langsmith_enabled,
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
             }
         except Exception as e:
             return {
-                "error": f"Failed to get database info: {str(e)}"
+                "error": f"Failed to get database info: {str(e)}",
+                "langsmith_enabled": self.langsmith_enabled,
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
             }
     
     def close(self):
@@ -177,32 +206,39 @@ class SQLAgent(Runnable):
         """Invoke the agent with input data. This is the main entry point for LangServe."""
         if isinstance(input_data, str):
             # Direct string input
-            return self.process_query(input_data)
+            return self.process_query(input_data, config.get("metadata") if config else None)
         elif isinstance(input_data, dict) and "query" in input_data:
             # Dictionary with query key
-            return self.process_query(input_data["query"])
+            metadata = input_data.get("metadata") or (config.get("metadata") if config else None)
+            return self.process_query(input_data["query"], metadata)
         elif isinstance(input_data, dict) and "input" in input_data:
             # LangServe input format
-            return self.process_query(input_data["input"])
+            metadata = input_data.get("metadata") or (config.get("metadata") if config else None)
+            return self.process_query(input_data["input"], metadata)
         elif hasattr(input_data, 'query'):
             # Pydantic model with query attribute
-            return self.process_query(input_data.query)
+            metadata = getattr(input_data, 'metadata', None) or (config.get("metadata") if config else None)
+            return self.process_query(input_data.query, metadata)
         elif hasattr(input_data, 'input'):
             # Pydantic model with input attribute
-            return self.process_query(input_data.input)
+            metadata = getattr(input_data, 'metadata', None) or (config.get("metadata") if config else None)
+            return self.process_query(input_data.input, metadata)
         elif isinstance(input_data, dict) and "messages" in input_data:
             # LangChain message format
             if input_data["messages"] and len(input_data["messages"]) > 0:
                 last_message = input_data["messages"][-1]
+                metadata = input_data.get("metadata") or (config.get("metadata") if config else None)
                 if hasattr(last_message, 'content'):
-                    return self.process_query(last_message.content)
+                    return self.process_query(last_message.content, metadata)
                 elif isinstance(last_message, dict) and "content" in last_message:
-                    return self.process_query(last_message["content"])
+                    return self.process_query(last_message["content"], metadata)
         
         # Fallback
         return {
             "success": False,
-            "error": f"Unsupported input format. Expected string, dict with 'query' or 'input', or Pydantic model with 'query' or 'input' attribute, got {type(input_data)}"
+            "error": f"Unsupported input format. Expected string, dict with 'query' or 'input', or Pydantic model with 'query' or 'input' attribute, got {type(input_data)}",
+            "langsmith_enabled": self.langsmith_enabled,
+            "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
         }
     
     def stream(self, input_data: Union[str, Dict[str, Any]], config: Dict[str, Any] = None):

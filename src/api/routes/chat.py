@@ -24,9 +24,32 @@ async def chat_invoke(request: ChatInput):
         raise HTTPException(status_code=500, detail="SQL Agent not initialized")
     
     try:
-        result = await sql_agent.ainvoke(request.input)
+        # Prepare metadata for LangSmith tracing
+        metadata = {}
+        if request.langsmith_metadata:
+            metadata.update({
+                "user_id": request.langsmith_metadata.user_id,
+                "session_id": request.langsmith_metadata.session_id,
+                "query_category": request.langsmith_metadata.query_category,
+                "tags": request.langsmith_metadata.tags,
+                "custom_fields": request.langsmith_metadata.custom_fields,
+                "api_endpoint": "chat_invoke"
+            })
+        
+        # Process the request with metadata
+        result = await sql_agent.ainvoke({
+            "input": request.input,
+            "metadata": metadata
+        })
         
         output = extract_clean_answer(result)
+        
+        # Extract LangSmith information from result
+        langsmith_info = {
+            "enabled": result.get("langsmith_enabled", False),
+            "project": result.get("project", "local"),
+            "trace_id": getattr(result.get("raw_result", {}), "id", None)
+        }
         
         return ChatResponse(
             output=output,
@@ -34,7 +57,8 @@ async def chat_invoke(request: ChatInput):
                 "input": request.input,
                 "timestamp": "now",
                 "model": "sql_agent"
-            }
+            },
+            langsmith_info=langsmith_info
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
@@ -47,7 +71,23 @@ async def chat_stream(request: ChatInput):
     
     async def generate_stream():
         try:
-            async for chunk in sql_agent.astream(request.input):
+            # Prepare metadata for LangSmith tracing
+            metadata = {}
+            if request.langsmith_metadata:
+                metadata.update({
+                    "user_id": request.langsmith_metadata.user_id,
+                    "session_id": request.langsmith_metadata.session_id,
+                    "query_category": request.langsmith_metadata.query_category,
+                    "tags": request.langsmith_metadata.tags,
+                    "custom_fields": request.langsmith_metadata.custom_fields,
+                    "api_endpoint": "chat_stream"
+                })
+            
+            # Process the request with metadata
+            async for chunk in sql_agent.astream({
+                "input": request.input,
+                "metadata": metadata
+            }):
                 if hasattr(chunk, 'content'):
                     yield f"data: {chunk.content}\n\n"
                 elif isinstance(chunk, dict):
@@ -81,16 +121,40 @@ async def chat_batch(requests: list[ChatInput]):
     try:
         results = []
         for request in requests:
-            result = await sql_agent.ainvoke(request.input)
+            # Prepare metadata for LangSmith tracing
+            metadata = {}
+            if request.langsmith_metadata:
+                metadata.update({
+                    "user_id": request.langsmith_metadata.user_id,
+                    "session_id": request.langsmith_metadata.session_id,
+                    "query_category": request.langsmith_metadata.query_category,
+                    "tags": request.langsmith_metadata.tags,
+                    "custom_fields": request.langsmith_metadata.custom_fields,
+                    "api_endpoint": "chat_batch"
+                })
+            
+            # Process the request with metadata
+            result = await sql_agent.ainvoke({
+                "input": request.input,
+                "metadata": metadata
+            })
             
             output = extract_clean_answer(result)
+            
+            # Extract LangSmith information from result
+            langsmith_info = {
+                "enabled": result.get("langsmith_enabled", False),
+                "project": result.get("project", "local"),
+                "trace_id": getattr(result.get("raw_result", {}), "id", None)
+            }
             
             results.append(ChatResponse(
                 output=output,
                 metadata={
                     "input": request.input,
                     "model": "sql_agent"
-                }
+                },
+                langsmith_info=langsmith_info
             ))
         
         return {"results": results}
