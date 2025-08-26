@@ -15,7 +15,7 @@ class Config:
     
     # Server Configuration
     SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-    SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+    SERVER_PORT = int(os.getenv("SERVER_PORT", "8001"))
     SERVER_RELOAD = os.getenv("SERVER_RELOAD", "false").lower() == "true"
     SERVER_LOG_LEVEL = os.getenv("SERVER_LOG_LEVEL", "info")
     

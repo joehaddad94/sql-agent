@@ -19,35 +19,26 @@ def main():
     # Validate configuration before starting
     Config.validate()
     
-    # Initialize the SQL Agent
-    print("🚀 Initializing SQL Agent for LangChain Platform...")
-    sql_agent = SQLAgent()
-    print("✅ SQL Agent initialized and ready for requests!")
-    
     # Create and configure the FastAPI app
     app = create_app()
     
-    # Set up the SQL Agent for all routes
-    setup_sql_agent(app, sql_agent)
-    
     return app
 
-# Create the app instance
+# Create the app instance (without SQL Agent)
 app = main()
 
 if __name__ == "__main__":
     import uvicorn
     
-    print("🌐 Starting LangChain Platform server...")
+    # Initialize the SQL Agent only when running the server
+    sql_agent = SQLAgent()
+    print("✅ SQL Agent ready")
+    
+    # Set up the SQL Agent for all routes
+    setup_sql_agent(app, sql_agent)
+    
+    print(f"🚀 Server starting on port {Config.SERVER_PORT}")
     print(f"📖 API docs: http://localhost:{Config.SERVER_PORT}/docs")
-    print(f"💬 Chat endpoint: http://localhost:{Config.SERVER_PORT}/chat/invoke")
-    print(f"🌊 Stream endpoint: http://localhost:{Config.SERVER_PORT}/chat/stream")
-    print(f"📦 Batch endpoint: http://localhost:{Config.SERVER_PORT}/chat/batch")
-    print(f"🏥 Health check: http://localhost:{Config.SERVER_PORT}/health")
-    print(f"🔧 Server config: {Config.SERVER_HOST}:{Config.SERVER_PORT}")
-    print(f"🔄 Auto-reload: {Config.SERVER_RELOAD}")
-    print(f"📝 Log level: {Config.SERVER_LOG_LEVEL}")
-    print("=" * 60)
     
     uvicorn.run(
         "app:app",

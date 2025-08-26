@@ -15,29 +15,23 @@ def main():
     """Main function to run the SQL Agent."""
     
     print("🚀 Natural Language SQL Agent")
-    print("=" * 40)
     
     try:
         # Initialize the SQL Agent
-        print("Initializing SQL Agent...")
         agent = SQLAgent()
-        print("✅ SQL Agent initialized successfully!")
+        print("✅ SQL Agent ready")
         
         # Get database information
-        print("\n📊 Database Information:")
         db_info = agent.get_database_info()
         
         if "error" not in db_info:
-            print(f"  Connection: {'✅ Connected' if db_info['connection_status'] else '❌ Failed'}")
-            print(f"  Tables: {', '.join(db_info['tables']) if db_info['tables'] else 'None'}")
-            print(f"  Available Tools: {', '.join(db_info['available_tools'])}")
+            print(f"📊 Database: {'✅ Connected' if db_info['connection_status'] else '❌ Failed'}")
         else:
-            print(f"  ❌ Error: {db_info['error']}")
+            print(f"❌ Database error: {db_info['error']}")
             return
         
         # Interactive query mode
-        print("\n💬 Interactive Query Mode (type 'quit' to exit)")
-        print("-" * 40)
+        print("💬 Interactive mode (type 'quit' to exit)")
         
         while True:
             try:
@@ -50,19 +44,17 @@ def main():
                 if not query:
                     continue
                 
-                print(f"\n🔍 Processing: '{query}'")
-                print("⏳ Please wait...")
+                print(f"🔍 Processing: {query}")
                 
                 # Process the query
                 result = agent.process_query(query)
                 
                 if result["success"]:
-                    print("✅ Query processed successfully!")
-                    print(f"📋 Answer: {result['answer']}")
+                    print(f"✅ {result['answer']}")
                     if result.get('sql_query_used'):
-                        print(f"🔍 SQL Query Used: {result['sql_query_used']}")
+                        print(f"🔍 SQL: {result['sql_query_used']}")
                 else:
-                    print(f"❌ Error: {result['error']}")
+                    print(f"❌ {result['error']}")
                     
             except KeyboardInterrupt:
                 print("\n\n👋 Goodbye!")
