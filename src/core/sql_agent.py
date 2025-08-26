@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from src.database.connection import DatabaseManager
 from src.database.schema import SchemaInspector
 from src.utils.config import Config
+from src.utils.cache import SmartCache, QueryType
 
 class SQLAgent(Runnable):
     
@@ -21,6 +22,9 @@ class SQLAgent(Runnable):
         # Initialize components
         self.db_manager = DatabaseManager(Config.DATABASE_URL)
         self.schema_inspector = SchemaInspector(self.db_manager)
+        
+        # Initialize smart cache
+        self.cache = SmartCache(max_size=1000)
         
         # Initialize LLM with metadata for tracing
         self.llm = ChatOpenAI(
@@ -65,7 +69,8 @@ class SQLAgent(Runnable):
             - For applications and submissions: Use 'application_news' table (NOT 'applicants')
             - For programs and courses: Use 'programs' table
             - For application cycles and dates: Use 'cycles' table
-            - For user information: Use 'up_users' table
+            - For users: Use 'up_users' table
+            - For information: Use 'information' table
             - For application components and details: Use 'application_news_*_links' tables
             - For decision dates: Use 'decision_dates' table
             - For enrolled applications: Use 'enrolled_applications' table
@@ -76,7 +81,7 @@ class SQLAgent(Runnable):
             - Application status and acceptance are tracked in 'application_news' table
             - Programs and courses are managed in 'programs' table
             - Application cycles (academic periods) are in 'cycles' table
-            - User information is in 'up_users' table, not 'admin_users'
+            - Users are in 'up_users' table, not 'admin_users'
 
             When answering questions about applications, always use the 'application_news' table
             and its related link tables for comprehensive information.
@@ -88,9 +93,53 @@ class SQLAgent(Runnable):
         # Create the agent
         self.agent_executor = create_react_agent(self.llm, self.tools, prompt=self.system_message)
     
+    def _determine_query_type(self, query: str) -> QueryType:
+        """Determine the type of query for caching strategy."""
+        query_lower = query.lower()
+        
+        # Count queries
+        if any(word in query_lower for word in ['how many', 'count', 'total', 'number of']):
+            return QueryType.COUNT
+        
+        # List queries
+        if any(word in query_lower for word in ['show me', 'list', 'get all', 'find all', 'what are']):
+            return QueryType.LIST
+        
+        # Schema queries
+        if any(word in query_lower for word in ['tables', 'schema', 'structure', 'columns', 'database']):
+            return QueryType.SCHEMA
+        
+        # Detail queries (including information table queries)
+        if any(word in query_lower for word in ['details', 'information about', 'tell me about', 'what is', 'explain', 'describe']):
+            return QueryType.DETAIL
+        
+        # Real-time queries (no caching)
+        if any(word in query_lower for word in ['current', 'now', 'latest', 'recent', 'today', 'this week']):
+            return QueryType.REAL_TIME
+        
+        # Information table specific queries (treat as detail queries)
+        if any(word in query_lower for word in ['information', 'info', 'data', 'content', 'policy', 'rule', 'guideline']):
+            return QueryType.DETAIL
+        
+        # Default to detail for most queries (better for information retrieval)
+        return QueryType.DETAIL
+    
     def process_query(self, natural_language_query: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a natural language query using the LangChain agent and return results."""
         try:
+            # Check cache first
+            query_type = self._determine_query_type(natural_language_query)
+            cached_result = self.cache.get(natural_language_query, query_type, metadata)
+            
+            if cached_result:
+                return {
+                    "success": True,
+                    "answer": cached_result,
+                    "cached": True,
+                    "cache_hit": True,
+                    "query_type": query_type.value
+                }
+            
             # Prepare metadata for tracing
             run_metadata = {
                 "query_type": "natural_language_to_sql",
@@ -150,6 +199,9 @@ class SQLAgent(Runnable):
                 if not final_answer:
                     final_answer = "No clear answer generated"
             
+            # Cache the successful result
+            self.cache.set(natural_language_query, final_answer, query_type, metadata)
+            
             return {
                 "success": True,
                 "natural_language_query": natural_language_query,
@@ -157,7 +209,10 @@ class SQLAgent(Runnable):
                 "sql_query_used": sql_query_used,
                 "raw_result": result,  # Keep raw result for debugging if needed
                 "langsmith_enabled": self.langsmith_enabled,
-                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local"
+                "project": Config.LANGSMITH_PROJECT if self.langsmith_enabled else "local",
+                "cached": False,
+                "cache_hit": False,
+                "query_type": query_type.value
             }
             
         except Exception as e:
@@ -198,8 +253,29 @@ class SQLAgent(Runnable):
             }
     
     def close(self):
-        """Close database connections."""
+        """Close database connections and clear cache."""
         self.db_manager.close()
+        self.cache.clear()
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        return self.cache.get_stats()
+    
+    def get_cache_info(self) -> Dict[str, Any]:
+        """Get detailed cache information."""
+        return self.cache.get_cache_info()
+    
+    def invalidate_cache_pattern(self, pattern: str):
+        """Invalidate cache entries matching a pattern."""
+        self.cache.invalidate_pattern(pattern)
+    
+    def invalidate_cache_table(self, table_name: str):
+        """Invalidate cache entries affected by table changes."""
+        self.cache.invalidate_table(table_name)
+    
+    def clear_cache(self):
+        """Clear all cached data."""
+        self.cache.clear()
     
     # LangServe Runnable interface methods
     def invoke(self, input_data: Union[str, Dict[str, Any]], config: Dict[str, Any] = None) -> Dict[str, Any]:
